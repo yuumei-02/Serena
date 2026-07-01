@@ -26,6 +26,7 @@ size_t G_page_size = 4096;
 #endif
 
 size_t alignup(size_t byte_length, size_t alignment);
+void debug_print_memory_region(void* region, size_t bytes);
 
 typedef struct {
    void* memory;
@@ -63,7 +64,7 @@ size_t alignup(size_t byte_length, size_t alignment) {
 
 Arena Arena_new(size_t capacity) {
    capacity = alignup(capacity, G_page_size);
-   void* memory = mmap(NULL, capacity, PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+   void* memory = mmap(NULL, capacity, PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
    if (memory == MAP_FAILED) {
       fprintf(stderr, "[!] Failed to map \"%zu\" bytes of memory in Arena_new", capacity);
       exit(1);
@@ -126,6 +127,20 @@ void Arena_pop(Arena* self, size_t bytes) {
    else   
       self->length -= bytes;
 }
+
+void debug_print_memory_region(void* region, size_t bytes) {
+   assert(region != NULL);
+
+   uint8_t* chunk = (uint8_t*) region;
+   for (size_t i = 0; i < bytes; ++i) {
+      if ((i + 1) % 16 == 1) putc('\n', stdout);
+      printf("%02x ", (int) *chunk++);
+   }
+
+   putc('\n', stdout);
+}
+
+// faebdaed
 
 #endif
 
