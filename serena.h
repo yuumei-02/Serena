@@ -28,6 +28,13 @@ size_t G_page_size = 4096;
 size_t alignup(size_t byte_length, size_t alignment);
 void debug_print_memory_region(void* region, size_t bytes);
 
+typedef enum : int {
+   MP_Read  = 2,
+   MP_Write = 4,
+   MP_Exec  = 6,
+   MP_None  = 0,
+} MemoryProtection;
+
 typedef struct {
    void* memory;
    size_t length;
@@ -36,6 +43,7 @@ typedef struct {
 
 /// [capacity] gets upsized to align with [G_page_size] which is typically [4096] bytes.
 Arena Arena_new(size_t capacity);
+Arena Arena_new_ex(size_t capacity, MemoryProtection protection);
 
 void Arena_delete(nullable Arena* self);
 void Arena_reset(nullable Arena* self);
@@ -63,8 +71,22 @@ size_t alignup(size_t byte_length, size_t alignment) {
 }
 
 Arena Arena_new(size_t capacity) {
+   return Arena_new_ex(capacity, MP_Read | MP_Write);
+}
+
+Arena Arena_new_ex(size_t capacity, MemoryProtection protection) {
    capacity = alignup(capacity, G_page_size);
-   void* memory = mmap(NULL, capacity, PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
+   int prot = 0;
+   if (protection & MP_None) {
+      prot = PROT_NONE;
+   } else {
+      prot = protection & MP_Exec  ? (prot | PROT_EXEC)  : prot;
+      prot = protection & MP_Read  ? (prot | PROT_READ)  : prot;
+      prot = protection & MP_Write ? (prot | PROT_WRITE) : prot;
+   }
+   
+   void* memory = mmap(NULL, capacity, protection, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
    if (memory == MAP_FAILED) {
       fprintf(stderr, "[!] Failed to map \"%zu\" bytes of memory in Arena_new", capacity);
       exit(1);
