@@ -7,6 +7,16 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifndef DONT_INCLUDE_MEMORY_UNITS
+#define KB 1000
+#define MB 1000000
+#define GB 1000000000
+
+#define KiB 1024
+#define MiB 1048576
+#define GiB 1073741824
+#endif
+
 #ifndef CUSTOM_PAGE_SIZE
 size_t G_page_size = 4096;
 #endif
@@ -37,7 +47,6 @@ void Arena_pop(Arena* self, size_t bytes);
 #ifdef SERENA_IMPL
 #undef SERENA_IMPL
 
-/* #include <stdalign.h> */
 #include <sys/mman.h>
 #include <unistd.h>
 #include <stdlib.h>
