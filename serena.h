@@ -7,27 +7,100 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/// Conditionally upsizes [byte_length] to include padding in order to satisfy memory alignment requirements.
-/// This works for all types with alignment requirements up to the alignment of max_align_t which is typically [8 bytes].
-/// Use alignup_ex to specify what alignment to alignup from.
-size_t alignup(size_t byte_length);
-size_t alignup_ex(size_t byte_length, size_t alignment);
+#ifndef CUSTOM_PAGE_SIZE
+size_t G_page_size = 4096;
+#endif
+
+#ifndef nullable
+#define nullable
+#endif
+
+size_t alignup(size_t byte_length, size_t alignment);
+
+typedef struct {
+   void* memory;
+   size_t length;
+   size_t capacity;
+} Arena;
+
+/// [capacity] gets upsized to align with [G_page_size] which is typically [4096] bytes.
+Arena Arena_new(size_t capacity);
+
+void Arena_delete(nullable Arena* self);
+void Arena_reset(nullable Arena* self);
+
+void* Arena_push(Arena* self, size_t bytes, size_t alignment);
+void Arena_pop(Arena* self, size_t bytes);
 
 #endif
 
 #ifdef SERENA_IMPL
 #undef SERENA_IMPL
 
-#include <stdalign.h>
+/* #include <stdalign.h> */
+#include <sys/mman.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <assert.h>
 
-const size_t C_platform_alignment = alignof(max_align_t);
-
-size_t alignup(size_t byte_length) {
-   return (byte_length + C_platform_alignment - 1) & ~(C_platform_alignment - 1);
+size_t alignup(size_t byte_length, size_t alignment) {
+   assert(alignment > 0 && alignment % 2 == 0);
+   return (byte_length + alignment - 1) & ~(alignment - 1);
 }
 
-size_t alignup_ex(size_t byte_length, size_t alignment) {
-   return (byte_length + alignment - 1) & ~(alignment - 1);
+Arena Arena_new(size_t capacity) {
+   capacity = alignup(capacity, G_page_size);
+   void* memory = mmap(NULL, capacity, PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+   if (memory == MAP_FAILED) {
+      fprintf(stderr, "[!] Failed to map \"%zu\" bytes of memory in Arena_new", capacity);
+      exit(1);
+   }
+
+   return (Arena) {
+      .memory = memory,
+      .capacity = capacity
+   };
+}
+
+void Arena_delete(nullable Arena* self) {
+   if (self == NULL) return;
+
+   munmap(self->memory, self->capacity);
+   *self = (Arena) {0};
+}
+
+void Arena_reset(nullable Arena* self) {
+   if (self == NULL) return;
+
+   self->length = 0;
+}
+
+void* Arena_push(Arena* self, size_t bytes, size_t alignment) {
+   assert(self != NULL);
+   if (bytes == 0) return NULL;
+
+   uintptr_t aligned_off = alignup(self->length, alignment);
+
+   // @todo: non panic version
+   if (aligned_off + bytes >= self->capacity) {
+      fprintf(stderr, "[!] OOM, failed to allocate \"%zu\" bytes from arena", bytes);
+      exit(1);
+   }
+
+   void* ptr = (uint8_t*) self->memory + aligned_off;
+   self->length = aligned_off + bytes;
+
+   return ptr;
+}
+
+void Arena_pop(Arena* self, size_t bytes) {
+   assert(self != NULL);
+
+   if (bytes >= self->length)
+      self->length = 0;
+   else   
+      self->length -= bytes;
 }
 
 #endif
