@@ -39,7 +39,10 @@ Arena Arena_new(size_t capacity);
 void Arena_delete(nullable Arena* self);
 void Arena_reset(nullable Arena* self);
 
+/// Aborts on OOM.
 void* Arena_push(Arena* self, size_t bytes, size_t alignment);
+/// Returns NULL on OOM or when bytes is 0.
+void* Arena_push_no_panic(Arena* self, size_t bytes, size_t alignment);
 void Arena_pop(Arena* self, size_t bytes);
 
 #endif
@@ -85,22 +88,34 @@ void Arena_reset(nullable Arena* self) {
    self->length = 0;
 }
 
-void* Arena_push(Arena* self, size_t bytes, size_t alignment) {
+static inline void* Arena_push_impl(Arena* self, size_t bytes, size_t alignment, bool panic) {
    assert(self != NULL);
+   if (panic) assert(bytes > 0);
    if (bytes == 0) return NULL;
 
    uintptr_t aligned_off = alignup(self->length, alignment);
 
-   // @todo: non panic version
    if (aligned_off + bytes >= self->capacity) {
-      fprintf(stderr, "[!] OOM, failed to allocate \"%zu\" bytes from arena", bytes);
-      exit(1);
+      if (panic) {
+         fprintf(stderr, "[!] OOM, failed to allocate \"%zu\" bytes from arena", bytes);
+         exit(1);
+      } else {
+         return NULL;
+      }
    }
 
    void* ptr = (uint8_t*) self->memory + aligned_off;
    self->length = aligned_off + bytes;
 
    return ptr;
+}
+
+void* Arena_push(Arena* self, size_t bytes, size_t alignment) {
+   return Arena_push_impl(self, bytes, alignment, true);
+}
+
+void* Arena_push_no_panic(Arena* self, size_t bytes, size_t alignment) {
+   return Arena_push_impl(self, bytes, alignment, false);
 }
 
 void Arena_pop(Arena* self, size_t bytes) {
