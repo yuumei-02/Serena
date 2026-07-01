@@ -25,9 +25,6 @@ size_t G_page_size = 4096;
 #define nullable
 #endif
 
-size_t alignup(size_t byte_length, size_t alignment);
-void debug_print_memory_region(void* region, size_t bytes);
-
 typedef enum : int {
    MP_Read  = 2,
    MP_Write = 4,
@@ -40,6 +37,9 @@ typedef struct {
    size_t length;
    size_t capacity;
 } Arena;
+
+size_t alignup(size_t byte_length, size_t alignment);
+void debug_print_memory_region(void* region, size_t bytes);
 
 /// [capacity] gets upsized to align with [G_page_size] which is typically [4096] bytes.
 Arena Arena_new(size_t capacity);
@@ -155,14 +155,13 @@ void debug_print_memory_region(void* region, size_t bytes) {
 
    uint8_t* chunk = (uint8_t*) region;
    for (size_t i = 0; i < bytes; ++i) {
-      if ((i + 1) % 16 == 1) putc('\n', stdout);
       printf("%02x ", (int) *chunk++);
+      if ((i + 1) % 16 == 0) putc('\n', stdout);
    }
 
-   putc('\n', stdout);
+   if (bytes == 0 || bytes % 16)
+      putc('\n', stdout);
 }
-
-// faebdaed
 
 #endif
 
