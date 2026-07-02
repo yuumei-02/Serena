@@ -7,6 +7,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifndef SERENA_DEF
+#define SERENA_DEF
+#endif
+
 #ifndef DONT_INCLUDE_MEMORY_UNITS
 #define KB 1000
 #define MB 1000000
@@ -38,24 +42,24 @@ typedef struct {
    size_t capacity;
 } Arena;
 
-size_t alignup(size_t bytes, size_t alignment);
-size_t alignup_fast_power_of_2(size_t bytes, size_t alignment);
-void debug_print_memory_region(void* region, size_t bytes);
+SERENA_DEF size_t alignup(size_t bytes, size_t alignment);
+SERENA_DEF size_t alignup_fast_power_of_2(size_t bytes, size_t alignment);
+SERENA_DEF void debug_print_memory_region(void* region, size_t bytes);
 
 /// [capacity] gets upsized to align with [G_page_size] which is typically [4096] bytes.
-Arena Arena_new(size_t capacity);
-Arena Arena_new_ex(size_t capacity, MemoryProtection protection);
-Arena Arena_from_parent_allocator(void* buffer, size_t capacity);
+SERENA_DEF Arena Arena_new(size_t capacity);
+SERENA_DEF Arena Arena_new_ex(size_t capacity, MemoryProtection protection);
+SERENA_DEF Arena Arena_from_parent_allocator(void* buffer, size_t capacity);
 
 /// Does not handle the deletion of arena's derived from other allocators.
-void Arena_delete(nullable Arena* self);
-void Arena_reset(nullable Arena* self);
+SERENA_DEF void Arena_delete(nullable Arena* self);
+SERENA_DEF void Arena_reset(nullable Arena* self);
 
 /// Aborts on OOM.
-void* Arena_push(Arena* self, size_t bytes, size_t alignment);
+SERENA_DEF void* Arena_push(Arena* self, size_t bytes, size_t alignment);
 /// Returns NULL on OOM or when bytes is 0.
-void* Arena_push_no_panic(Arena* self, size_t bytes, size_t alignment);
-void Arena_pop(Arena* self, size_t bytes);
+SERENA_DEF void* Arena_push_no_panic(Arena* self, size_t bytes, size_t alignment);
+SERENA_DEF void Arena_pop(Arena* self, size_t bytes);
 
 #endif
 
@@ -68,7 +72,7 @@ void Arena_pop(Arena* self, size_t bytes);
 #include <stdio.h>
 #include <assert.h>
 
-size_t alignup(size_t bytes, size_t alignment) {
+SERENA_DEF size_t alignup(size_t bytes, size_t alignment) {
    if (alignment == 0) return bytes;
 
    size_t remainder = bytes % alignment;
@@ -79,16 +83,16 @@ size_t alignup(size_t bytes, size_t alignment) {
       return bytes + (alignment - remainder);
 }
 
-size_t alignup_fast_power_of_2(size_t bytes, size_t alignment) {
+SERENA_DEF size_t alignup_fast_power_of_2(size_t bytes, size_t alignment) {
    assert(alignment > 0 && alignment % 2 == 0);
    return (bytes + alignment - 1) & ~(alignment - 1);
 }
 
-Arena Arena_new(size_t capacity) {
+SERENA_DEF Arena Arena_new(size_t capacity) {
    return Arena_new_ex(capacity, MP_Read | MP_Write);
 }
 
-Arena Arena_new_ex(size_t capacity, MemoryProtection protection) {
+SERENA_DEF Arena Arena_new_ex(size_t capacity, MemoryProtection protection) {
    capacity = alignup(capacity, G_page_size);
 
    int prot = 0;
@@ -112,7 +116,7 @@ Arena Arena_new_ex(size_t capacity, MemoryProtection protection) {
    };
 }
 
-Arena Arena_from_parent_allocator(void* buffer, size_t capacity) {
+SERENA_DEF Arena Arena_from_parent_allocator(void* buffer, size_t capacity) {
    assert(capacity > 0);
 
    return (Arena) {
@@ -121,20 +125,20 @@ Arena Arena_from_parent_allocator(void* buffer, size_t capacity) {
    };
 }
 
-void Arena_delete(nullable Arena* self) {
+SERENA_DEF void Arena_delete(nullable Arena* self) {
    if (self == NULL) return;
 
    munmap(self->buffer, self->capacity);
    *self = (Arena) {0};
 }
 
-void Arena_reset(nullable Arena* self) {
+SERENA_DEF void Arena_reset(nullable Arena* self) {
    if (self == NULL) return;
 
    self->length = 0;
 }
 
-static inline void* Arena_push_impl(Arena* self, size_t bytes, size_t alignment, bool panic) {
+SERENA_DEF void* Arena_push_impl(Arena* self, size_t bytes, size_t alignment, bool panic) {
    assert(self != NULL);
    if (panic) assert(bytes > 0);
    if (bytes == 0) return NULL;
@@ -156,15 +160,15 @@ static inline void* Arena_push_impl(Arena* self, size_t bytes, size_t alignment,
    return ptr;
 }
 
-void* Arena_push(Arena* self, size_t bytes, size_t alignment) {
+SERENA_DEF void* Arena_push(Arena* self, size_t bytes, size_t alignment) {
    return Arena_push_impl(self, bytes, alignment, true);
 }
 
-void* Arena_push_no_panic(Arena* self, size_t bytes, size_t alignment) {
+SERENA_DEF void* Arena_push_no_panic(Arena* self, size_t bytes, size_t alignment) {
    return Arena_push_impl(self, bytes, alignment, false);
 }
 
-void Arena_pop(Arena* self, size_t bytes) {
+SERENA_DEF void Arena_pop(Arena* self, size_t bytes) {
    assert(self != NULL);
 
    if (bytes >= self->length)
@@ -173,7 +177,7 @@ void Arena_pop(Arena* self, size_t bytes) {
       self->length -= bytes;
 }
 
-void debug_print_memory_region(void* region, size_t bytes) {
+SERENA_DEF void debug_print_memory_region(void* region, size_t bytes) {
    assert(region != NULL);
 
    uint8_t* chunk = (uint8_t*) region;
