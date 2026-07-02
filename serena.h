@@ -33,18 +33,21 @@ typedef enum : int {
 } MemoryProtection;
 
 typedef struct {
-   void* memory;
+   void* buffer;
    size_t length;
    size_t capacity;
 } Arena;
 
-size_t alignup(size_t byte_length, size_t alignment);
+size_t alignup(size_t bytes, size_t alignment);
+size_t alignup_fast_power_of_2(size_t bytes, size_t alignment);
 void debug_print_memory_region(void* region, size_t bytes);
 
 /// [capacity] gets upsized to align with [G_page_size] which is typically [4096] bytes.
 Arena Arena_new(size_t capacity);
 Arena Arena_new_ex(size_t capacity, MemoryProtection protection);
+Arena Arena_from_parent_allocator(void* buffer, size_t capacity);
 
+/// Does not handle the deletion of arena's derived from other allocators.
 void Arena_delete(nullable Arena* self);
 void Arena_reset(nullable Arena* self);
 
@@ -65,9 +68,20 @@ void Arena_pop(Arena* self, size_t bytes);
 #include <stdio.h>
 #include <assert.h>
 
-size_t alignup(size_t byte_length, size_t alignment) {
+size_t alignup(size_t bytes, size_t alignment) {
+   if (alignment == 0) return bytes;
+
+   size_t remainder = bytes % alignment;
+
+   if (remainder == 0)
+      return bytes;
+   else
+      return bytes + (alignment - remainder);
+}
+
+size_t alignup_fast_power_of_2(size_t bytes, size_t alignment) {
    assert(alignment > 0 && alignment % 2 == 0);
-   return (byte_length + alignment - 1) & ~(alignment - 1);
+   return (bytes + alignment - 1) & ~(alignment - 1);
 }
 
 Arena Arena_new(size_t capacity) {
@@ -86,22 +100,31 @@ Arena Arena_new_ex(size_t capacity, MemoryProtection protection) {
       prot = protection & MP_Write ? (prot | PROT_WRITE) : prot;
    }
    
-   void* memory = mmap(NULL, capacity, protection, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-   if (memory == MAP_FAILED) {
+   void* buffer = mmap(NULL, capacity, protection, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+   if (buffer == MAP_FAILED) {
       fprintf(stderr, "[!] Failed to map \"%zu\" bytes of memory in Arena_new", capacity);
       exit(1);
    }
 
    return (Arena) {
-      .memory = memory,
+      .buffer = buffer,
       .capacity = capacity
+   };
+}
+
+Arena Arena_from_parent_allocator(void* buffer, size_t capacity) {
+   assert(capacity > 0);
+
+   return (Arena) {
+      .buffer = buffer,
+      .capacity = capacity,
    };
 }
 
 void Arena_delete(nullable Arena* self) {
    if (self == NULL) return;
 
-   munmap(self->memory, self->capacity);
+   munmap(self->buffer, self->capacity);
    *self = (Arena) {0};
 }
 
@@ -127,7 +150,7 @@ static inline void* Arena_push_impl(Arena* self, size_t bytes, size_t alignment,
       }
    }
 
-   void* ptr = (uint8_t*) self->memory + aligned_off;
+   void* ptr = (uint8_t*) self->buffer + aligned_off;
    self->length = aligned_off + bytes;
 
    return ptr;
