@@ -21,9 +21,7 @@
 #define GiB 1073741824
 #endif
 
-#ifndef CUSTOM_PAGE_SIZE
-size_t G_page_size = 4096;
-#endif
+extern size_t G_page_size;
 
 #ifndef nullable
 #define nullable
@@ -71,6 +69,10 @@ SERENA_DEF void Arena_pop(Arena* self, size_t bytes);
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+
+#ifndef CUSTOM_PAGE_SIZE
+size_t G_page_size = 4096;
+#endif
 
 SERENA_DEF size_t alignup(size_t bytes, size_t alignment) {
    if (alignment == 0) return bytes;
