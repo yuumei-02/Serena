@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Yuumei (https://github.com/yuumei-02) All Rights Reserved.
+// Copyright (c) 2026 yuumei-02.
 // See the LICENSE file for more information.
 
 #ifndef SERENA_HDR
